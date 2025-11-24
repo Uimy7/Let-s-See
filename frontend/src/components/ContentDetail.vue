@@ -26,6 +26,16 @@
               <div v-else class="no-image-placeholder">
                 <span>{{ article.title.charAt(0) }}</span>
               </div>
+                <div 
+                      v-show="!isCommentFocused"
+                      class="heart-button"
+                      :class="{ liked: article.isLiked, animating: article.animating }"
+                      @click="toggleLike"
+                    >
+                      <span class="heart-icon">{{ article.isLiked ? '❤️' : '🤍' }}</span>
+                      <!-- <span class="like-text">{{ article.isLiked ? '已赞' : '点赞' }}</span> -->
+                    </div>
+              
             </aside>
 
             <!-- Right: Content -->
@@ -233,7 +243,7 @@
                         <EmojiPicker @select="handleEmojiSelect" :native="true" :hide-search="true" :disable-skin-tones="true" />
                       </div>
                       <button 
-                        v-show="isCommentFocused"
+                        v-show="true"
                         class="submit-comment-btn"
                         :disabled="!newComment.trim() || isSubmittingComment"
                         @click="submitComment"
@@ -241,15 +251,7 @@
                         {{ isSubmittingComment ? '发送中...' : '发送' }}
                       </button>
                     </div>
-                    <div 
-                      v-show="!isCommentFocused"
-                      class="heart-button"
-                      :class="{ liked: article.isLiked, animating: article.animating }"
-                      @click="toggleLike"
-                    >
-                      <span class="heart-icon">{{ article.isLiked ? '❤️' : '🤍' }}</span>
-                      <span class="like-text">{{ article.isLiked ? '已赞' : '点赞' }}</span>
-                    </div>
+                  
                   </div>
               </div>
             </main>
@@ -694,6 +696,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .image-carousel {
@@ -909,6 +913,7 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   align-items: center;
+  height:30px
 }
 
 .comment-avatar {
@@ -936,7 +941,7 @@ onMounted(() => {
 .input-container {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
 }
 
@@ -949,13 +954,14 @@ onMounted(() => {
 
 .textarea-wrapper {
   position: relative;
-  flex: 1;
+  flex:1;
   display: flex;
   align-items: center;
 }
 
 .comment-textarea {
   flex: 1;
+  height:40px;
   padding: 8px 40px 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -984,6 +990,7 @@ onMounted(() => {
   cursor: pointer;
   transition: background 0.2s;
   flex-shrink: 0;
+  width:60px;
 }
 
 .submit-comment-btn:hover:not(:disabled) {
@@ -1246,24 +1253,35 @@ onMounted(() => {
 }
 
 .heart-button {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
+ 
+  backdrop-filter: blur(8px);
+ 
+  z-index: 100;
   flex-shrink: 0;
 }
 
 .heart-button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  /* background: rgba(0, 0, 0, 0.5); */
+  transform: scale(1.05);
 }
 
+/* .heart-button.liked:hover {
+  background: rgba(254, 44, 85, 0.7);
+} */
+
 .heart-button.liked {
-  background: rgba(254, 44, 85, 0.1);
+  /* background: rgba(254, 44, 85, 0.6); */
+  backdrop-filter: blur(8px);
   border-color: var(--primary-color);
 }
 
@@ -1279,7 +1297,9 @@ onMounted(() => {
 
 .like-text {
   font-size: 14px;
-  color: var(--text-primary);
+  color: #ffffff;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 @keyframes heartBounce {
