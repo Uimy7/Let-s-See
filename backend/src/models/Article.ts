@@ -51,6 +51,8 @@ const articleSchema = new Schema<IArticle>(
           default: Date.now,
         },
         thumbnailUrl: String,
+        width: Number,
+        height: Number,
       },
     ],
     tags: [

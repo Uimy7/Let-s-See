@@ -43,6 +43,8 @@ export interface ArticleImage {
   url: string
   uploadedAt: string
   thumbnailUrl?: string
+  width?: number
+  height?: number
 }
 
 export interface CreateArticleRequest {
@@ -92,6 +94,8 @@ export interface FeedItem {
   title: string
   summary: string
   lastImageUrl?: string
+  lastImageWidth?: number
+  lastImageHeight?: number
   author: {
     id: string
     username: string

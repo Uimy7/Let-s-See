@@ -63,6 +63,8 @@ export interface ArticleImage {
   url: string
   uploadedAt: string
   thumbnailUrl?: string
+  width?: number
+  height?: number
 }
 
 export interface ArticleDTO {

@@ -3,6 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
+import sharp from 'sharp'
 
 // Ensure upload directory exists
 const uploadDir = path.join(process.cwd(), 'uploads')
@@ -23,7 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 10 * 1024 * 1024 // 10MB limit (increased for high res images)
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -36,22 +37,32 @@ const upload = multer({
 
 const router = Router()
 
-router.post('/image', upload.single('file'), (req, res) => {
+router.post('/image', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ code: 4000, message: 'No file uploaded' })
   }
   
-  // Return the URL (assuming static serve is set up)
-  const url = `/uploads/${req.file.filename}`
-  
-  res.json({
-    code: 0,
-    message: 'Upload successful',
-    data: {
-      url,
-      thumbnailUrl: url
-    }
-  })
+  try {
+    // Get image metadata (width, height)
+    const metadata = await sharp(req.file.path).metadata()
+    
+    // Return the URL (assuming static serve is set up)
+    const url = `/uploads/${req.file.filename}`
+    
+    res.json({
+      code: 0,
+      message: 'Upload successful',
+      data: {
+        url,
+        thumbnailUrl: url,
+        width: metadata.width,
+        height: metadata.height
+      }
+    })
+  } catch (error) {
+    console.error('Image processing error:', error)
+    res.status(500).json({ code: 5000, message: 'Failed to process image' })
+  }
 })
 
 export default router

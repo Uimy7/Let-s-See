@@ -52,6 +52,8 @@ const draftSchema = new Schema<IDraft>(
           default: Date.now,
         },
         thumbnailUrl: String,
+        width: Number,
+        height: Number,
       },
     ],
     lastSavedAt: {

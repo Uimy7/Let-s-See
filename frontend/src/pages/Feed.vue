@@ -29,6 +29,8 @@
         </div>
       </div>
       <div class="nav-right">
+        <button class="icon-btn mobile-search-btn">🔍</button>
+        
         <div class="search-box">
           <input type="text" placeholder="搜索你感兴趣的内容..." />
           <button>🔍</button>
@@ -75,7 +77,23 @@
       </aside>
 
       <!-- Feed Stream -->
-      <main class="feed-stream" ref="scrollContainer" @scroll="handleScroll">
+      <main 
+        class="feed-stream" 
+        ref="scrollContainer" 
+        @scroll="handleScroll"
+        @touchstart="handleTouchStart"
+        @touchmove="handleTouchMove"
+        @touchend="handleTouchEnd"
+      >
+        <!-- Pull Refresh Indicator -->
+        <div 
+          class="pull-indicator" 
+          :style="{ height: `${pullDistance}px`, opacity: pullDistance > 0 ? 1 : 0 }"
+        >
+          <div v-if="isRefreshing" class="spinner small"></div>
+          <span v-else>{{ pullDistance > 50 ? '释放刷新' : '下拉刷新' }}</span>
+        </div>
+
         <div class="masonry-grid">
           <div
             v-for="item in articles"
@@ -83,12 +101,13 @@
             class="video-card"
             @click="goToArticle(item.id)"
           >
-            <div class="card-cover">
+            <div class="card-cover" :style="getImageStyle(item)">
               <img 
                 v-if="item.lastImageUrl" 
                 :src="item.lastImageUrl" 
                 :alt="item.title"
                 loading="lazy"
+                :style="getImageImgStyle(item)"
               />
               <div v-else class="no-image-placeholder">
                 <span>{{ item.title.charAt(0) }}</span>
@@ -107,16 +126,16 @@
             </div>
             <div class="card-info">
               <h3 class="card-title">{{ item.title }}</h3>
-              <div class="card-author">
-                <div class="author-avatar" :style="{backgroundImage:`url(${item.author.avatar})`,backgroundPosition: 'center center', backgroundSize: 'cover', backgroundRepeat: 'no-repeat'}"></div>
-                <span class="author-name">{{ item.author.username }}</span>
-                <FollowButton 
-                  v-if="item.author.id !== authStore.currentUser?._id"
-                  :user-id="item.author.id" 
-                  :initial-status="item.author.followStatus"
-                  class="mini-follow-btn"
-                />
-                <span class="post-time">{{ formatDate(item.createdAt) }}</span>
+              <div class="card-footer">
+                <div class="stats-left">
+                  <div class="author-info-mini">
+                    <div class="author-avatar" :style="{backgroundImage:`url(${item.author.avatar})`,backgroundPosition: 'center center', backgroundSize: 'cover', backgroundRepeat: 'no-repeat'}"></div>
+                    <span class="author-name">{{ item.author.username }}</span>
+                  </div>
+                </div>
+                <div class="stats-right">
+                  <span class="like-count">🤍 {{ item.isLiked ? '1' : '0' }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -139,6 +158,8 @@
 
       </main>
     </div>
+    
+    <MobileTabbar />
   </div>
  
 </template>
@@ -154,6 +175,7 @@ import FollowButton from '@/components/FollowButton.vue'
 import { useAuthStore } from '@/stores/auth'
 import ContentDetail from '@/components/ContentDetail.vue'
 import MessageNotification from '@/components/MessageNotification.vue'
+import MobileTabbar from '@/components/MobileTabbar.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -166,6 +188,87 @@ const activeTab = ref<'recommended' | 'following' | 'hot' | 'friends' | 'liked'>
 const sidebarTab = ref<'home' | 'friends' | 'liked'>('home')
 const scrollContainer = ref<HTMLElement | null>(null)
 const selectedArticleId = ref<string | null>(null)
+
+// Helper to calculate image styles
+const getImageStyle = (item: FeedItem) => {
+  if (item.lastImageWidth && item.lastImageHeight) {
+    // Calculate aspect ratio, but limit max height logic via CSS/style if needed
+    // Here we just set a min height or let it be flexible
+    return {} 
+  }
+  return {}
+}
+
+const getImageImgStyle = (item: FeedItem) => {
+  if (item.lastImageWidth && item.lastImageHeight) {
+    const aspectRatio = item.lastImageHeight / item.lastImageWidth
+    // If image is too tall (e.g. > 1.5 aspect ratio), limit it
+    // Assuming width is ~100% of card (~170px on mobile)
+    // Max height constraint: let's say 280px or aspect ratio 4:5
+    
+    // For true masonry, we let it flow, but cap extreme heights
+    const maxAspectRatio = 1.6 // e.g. 5:8
+    
+    if (aspectRatio > maxAspectRatio) {
+      return {
+        height: '260px', // Max fixed height
+        objectFit: 'cover' as const
+      }
+    }
+  }
+  return {}
+}
+
+// Pull to Refresh
+const isPulling = ref(false)
+const pullDistance = ref(0)
+const isRefreshing = ref(false)
+const startY = ref(0)
+
+const handleTouchStart = (e: TouchEvent) => {
+  const scrollTop = scrollContainer.value?.scrollTop || 0
+  if (scrollTop === 0) {
+    startY.value = e.touches[0].clientY
+    isPulling.value = true
+  }
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+  if (!isPulling.value) return
+  const scrollTop = scrollContainer.value?.scrollTop || 0
+  if (scrollTop > 0) {
+    isPulling.value = false
+    return
+  }
+  
+  const currentY = e.touches[0].clientY
+  const diff = currentY - startY.value
+  
+  if (diff > 0) {
+    // Add resistance
+    pullDistance.value = Math.min(diff * 0.5, 80)
+    if (diff > 10 && e.cancelable) {
+      e.preventDefault() // Prevent browser refresh only if cancelable
+    }
+  }
+}
+
+const handleTouchEnd = async () => {
+  if (!isPulling.value) return
+  
+  if (pullDistance.value > 50) {
+    isRefreshing.value = true
+    pullDistance.value = 50 // Hold position
+    await loadFeed(true) // Force reload
+    setTimeout(() => {
+      isRefreshing.value = false
+      pullDistance.value = 0
+    }, 500)
+  } else {
+    pullDistance.value = 0
+  }
+  isPulling.value = false
+}
 
 onMounted(() => {
   loadFeed()
@@ -212,10 +315,13 @@ const switchTab = async (tab: 'recommended' | 'following' | 'hot') => {
   await loadFeed()
 }
 
-const loadFeed = async () => {
-  if (isLoading.value) return
+const loadFeed = async (refresh = false) => {
+  if (isLoading.value && !refresh) return
   isLoading.value = true
-  currentPage.value = 1
+  if (refresh) {
+    currentPage.value = 1
+    hasMore.value = true
+  }
   
   try {
     const params: any = { 
@@ -236,7 +342,12 @@ const loadFeed = async () => {
 
     if (response.data) {
       const feedData = response.data as any
-      articles.value = mapFeedItems(feedData.items)
+      const items = mapFeedItems(feedData.items)
+      if (refresh) {
+        articles.value = items
+      } else {
+        articles.value = items // Original logic was replacing on page 1, push on loadMore
+      }
       hasMore.value = feedData.page < feedData.totalPages
     }
   } catch (error) {
@@ -292,6 +403,8 @@ const mapFeedItems = (items: any[]): FeedItem[] => {
     title: item.title,
     summary: item.summary,
     lastImageUrl: item.images?.[0]?.url,
+    lastImageWidth: item.images?.[0]?.width,
+    lastImageHeight: item.images?.[0]?.height,
     author: {
       id: item.authorId._id,
       username: item.authorId.username,
@@ -425,13 +538,17 @@ const goToArticle = (id: string) => {
   background-color: var(--primary-color);
 }
 
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
 
-.search-box {
+  .mobile-search-btn {
+    display: none;
+  }
+  
+  .search-box {
   background: rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 8px 16px;
@@ -527,6 +644,24 @@ const goToArticle = (id: string) => {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  /* Smooth scrolling */
+  -webkit-overflow-scrolling: touch; 
+}
+
+.pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: height 0.2s;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.spinner.small {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
 }
 
 .masonry-grid {
@@ -721,5 +856,210 @@ const goToArticle = (id: string) => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .feed-layout {
+    height: 100vh;
+    padding-bottom: 50px; /* Bottom Tabbar */
+  }
+
+  .main-content {
+    display: block; /* Disable flex to handle scrolling better on mobile */
+    height: 100%;
+    overflow-y: auto;
+  }
+  
+  .sidebar {
+    display: none;
+  }
+
+  .feed-stream {
+    padding: 0;
+    height: auto; /* Let content flow */
+    overflow: visible;
+  }
+  
+  .nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    padding: 0 16px;
+    background: rgba(22, 24, 35, 0.98);
+    border-bottom: none;
+    justify-content: center;
+  }
+  
+  .nav-left {
+    position: absolute;
+    left: 16px;
+  }
+  
+  .nav-center {
+    gap: 20px;
+  }
+  
+  .nav-tab {
+    font-size: 15px;
+    padding: 13px 0;
+  }
+  
+  .nav-tab.active::after {
+    bottom: 0;
+  }
+  
+  .nav-right {
+    position: absolute;
+    right: 16px;
+  }
+
+  .mobile-search-btn {
+    display: block;
+    font-size: 22px;
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    padding: 4px;
+  }
+  
+  /* Hide PC elements explicitly using classes to avoid !important wars */
+  .search-box, 
+  .upload-btn,
+  .user-profile,
+  .message-notification { /* Hide notification bell on mobile since we have a tab */
+    display: none !important;
+  }
+  
+  /* Masonry / Double Column Layout */
+  .masonry-grid {
+    display: block;
+    column-count: 2;
+    column-gap: 8px;
+    padding: 58px 8px 20px 8px; /* Header offset + gap */
+  }
+  
+  .video-card {
+    width: 100%;
+    background: var(--bg-secondary);
+    margin-bottom: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block; /* Prevent break inside columns */
+    break-inside: avoid;
+    flex-direction: column;
+  }
+  
+  .card-cover {
+    border-radius: 0;
+    padding-bottom: 0; /* Fix: Reset padding-bottom to remove black gap */
+    height: auto;
+    min-height: auto; /* Allow it to be smaller if image is small */
+    background-color: var(--bg-secondary);
+  }
+
+  .card-cover img {
+    position: static; /* Allow image to dictate height */
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  
+  .card-info {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .card-title {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    font-weight: 600; /* Bolder title */
+    color: #f1f1f1; /* Brighter text for dark mode */
+    letter-spacing: 0.5px;
+  }
+  
+  .card-author {
+    font-size: 11px;
+  }
+  
+  .author-avatar {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+  }
+  
+
+  .card-author,
+  .heart-button,
+  .card-gradient,
+  .card-stats {
+    display: none; /* Hide PC elements explicitly */
+  }
+  
+  /* Mobile Card Footer (Author + Likes) */
+  .card-footer {
+    display: flex;
+    margin-top: 8px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .stats-left {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .author-info-mini {
+    display: flex;
+    align-items: center;
+  }
+  
+  .author-avatar {
+    width: 18px;
+    height: 18px;
+    margin-right: 6px;
+    border-radius: 50%;
+  }
+
+  .author-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 80px;
+  }
+  
+  .stats-right {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+  }
+  
+  .like-count {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+    /* Ensure max 2 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 </style>

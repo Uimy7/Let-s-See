@@ -1,87 +1,97 @@
 <template>
-  <Transition name="modal">
-    <div v-if="visible" class="message-modal-overlay" @click.self="handleClose">
-      <div class="message-modal">
-        <div class="modal-header">
-          <div class="header-user-info">
-            <div 
-              class="user-avatar"
-              :style="targetUser?.avatar ? { backgroundImage: `url(${targetUser.avatar})` } : {}"
-            >
-              <span v-if="!targetUser?.avatar" class="avatar-initial">
-                {{ targetUser?.username?.charAt(0).toUpperCase() || 'U' }}
-              </span>
-            </div>
-            <div class="user-details">
-              <div class="username">{{ targetUser?.username || '用户' }}</div>
-              <div v-if="!isMutualFriend" class="message-limit-hint">
-                未互相关注，只能发送一条消息
-              </div>
-            </div>
-          </div>
-          <button class="close-btn" @click="handleClose">×</button>
+  <Transition name="slide-right">
+    <div v-if="visible" class="message-page">
+      <div class="page-header">
+        <button class="back-btn" @click="handleClose">
+          <span class="icon">‹</span>
+        </button>
+        <div class="header-title">
+          <span class="username">{{ targetUser?.username || '用户' }}</span>
+          <div v-if="!isMutualFriend" class="limit-tag">陌生人</div>
         </div>
+        <button class="more-btn">⋯</button>
+      </div>
 
-        <div class="modal-body">
-          <div v-if="isLoading" class="loading-container">
-            <div class="spinner"></div>
+      <div class="page-content" ref="messagesContainer">
+        <div v-if="isLoading" class="loading-container">
+          <div class="spinner"></div>
+        </div>
+        
+        <div v-else class="messages-list">
+          <div v-if="messages.length === 0" class="empty-messages">
+            <div class="empty-icon">👋</div>
+            <p>打个招呼吧~</p>
           </div>
           
-          <div v-else class="messages-container" ref="messagesContainer">
-            <div v-if="messages.length === 0" class="empty-messages">
-              <div class="empty-icon">💬</div>
-              <p>还没有消息，开始对话吧~</p>
+          <div
+            v-for="message in messages"
+            :key="message._id"
+            class="message-row"
+            :class="{ 'message-sent': getSenderId(message) === currentUserId }"
+          >
+            <div v-if="shouldShowTime(message)" class="time-stamp">
+              {{ formatDate(message.createdAt) }}
             </div>
             
-            <div v-else class="messages-list">
-              <div
-                v-for="message in messages"
-                :key="message._id"
-                class="message-item"
-                :class="{ 'message-sent': getSenderId(message) === currentUserId }"
+            <div class="message-bubble-group">
+              <div 
+                v-if="getSenderId(message) !== currentUserId"
+                class="avatar"
+                :style="getSenderAvatar(message) ? { backgroundImage: `url(${getSenderAvatar(message)})` } : {}"
               >
-                <div 
-                  v-if="getSenderId(message) !== currentUserId"
-                  class="message-avatar"
-                  :style="getSenderAvatar(message) ? { backgroundImage: `url(${getSenderAvatar(message)})` } : {}"
-                >
-                  <span v-if="!getSenderAvatar(message)" class="avatar-initial-small">
-                    {{ getSenderUsername(message)?.charAt(0).toUpperCase() || 'U' }}
-                  </span>
-                </div>
-                <div class="message-content-wrapper">
-                  <div class="message-bubble">
-                    {{ message.content }}
-                  </div>
-                  <div class="message-time">{{ formatDate(message.createdAt) }}</div>
-                </div>
+                <span v-if="!getSenderAvatar(message)" class="avatar-text">
+                  {{ getSenderUsername(message)?.charAt(0).toUpperCase() }}
+                </span>
+              </div>
+              
+              <div class="bubble">
+                {{ message.content }}
+              </div>
+              
+              <div 
+                v-if="getSenderId(message) === currentUserId"
+                class="avatar"
+                :style="authStore.currentUser?.avatar ? { backgroundImage: `url(${authStore.currentUser.avatar})` } : {}"
+              >
+                <span v-if="!authStore.currentUser?.avatar" class="avatar-text">
+                  {{ authStore.currentUser?.username?.charAt(0).toUpperCase() }}
+                </span>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="modal-footer">
-          <div v-if="!isMutualFriend && hasSentMessage" class="limit-warning">
-            ⚠️ 未互相关注，你只能发送一条消息
-          </div>
-          <div class="input-wrapper">
-            <textarea
+      <div class="page-footer">
+        <div v-if="!isMutualFriend && hasSentMessage" class="limit-tip">
+          需对方回复后才能继续发送
+        </div>
+        <div class="input-bar">
+          <button class="icon-btn voice-btn">🎤</button>
+          <div class="input-box-wrapper">
+            <input
               v-model="messageContent"
-              placeholder="输入消息..."
-              class="message-input"
-              rows="2"
+              placeholder="发消息..."
+              class="chat-input"
               :disabled="!isMutualFriend && hasSentMessage"
-              @keydown.ctrl.enter="sendMessage"
-              @keydown.meta.enter="sendMessage"
-            ></textarea>
-            <button
-              class="send-btn"
-              :disabled="!messageContent.trim() || isSending || (!isMutualFriend && hasSentMessage)"
-              @click="sendMessage"
-            >
-              {{ isSending ? '发送中...' : '发送' }}
-            </button>
+              @keydown.enter="sendMessage"
+            />
           </div>
+          <button class="icon-btn emoji-btn">😊</button>
+          <button 
+            v-if="!messageContent.trim()" 
+            class="icon-btn plus-btn"
+          >
+            ⊕
+          </button>
+          <button 
+            v-else 
+            class="send-btn-small"
+            :disabled="isSending"
+            @click="sendMessage"
+          >
+            发送
+          </button>
         </div>
       </div>
     </div>
@@ -316,6 +326,15 @@ watch(() => props.visible, (newVisible) => {
   }
 })
 
+// 是否显示时间戳（两条消息间隔超过5分钟）
+const shouldShowTime = (message: Message) => {
+  const index = messages.value.findIndex(m => m._id === message._id)
+  if (index === 0) return true
+  const prevMessage = messages.value[index - 1]
+  const timeDiff = new Date(message.createdAt).getTime() - new Date(prevMessage.createdAt).getTime()
+  return timeDiff > 5 * 60 * 1000
+}
+
 onMounted(() => {
   if (props.visible) {
     initSocket()
@@ -329,148 +348,66 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.message-modal-overlay {
+.message-page {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.message-modal {
-  width: 70vw;
-  height: 70vh;
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: var(--bg-color);
+  z-index: 2000;
   display: flex;
   flex-direction: column;
 }
 
-.modal-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.page-header {
+  height: 50px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--bg-color);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
 }
 
-.header-user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.user-avatar {
+.back-btn, .more-btn {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background-color: var(--bg-color);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 }
 
-.avatar-initial {
-  font-size: 18px;
-  font-weight: bold;
-  color: var(--text-tertiary);
-}
-
-.user-details {
-  flex: 1;
-  min-width: 0;
+.header-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .username {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
 }
 
-.message-limit-hint {
-  font-size: 12px;
+.limit-tag {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
   color: var(--text-tertiary);
 }
 
-.close-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  transition: background 0.2s;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.modal-body {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.loading-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  border-top-color: var(--primary-color);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.messages-container {
+.page-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
-}
-
-.empty-messages {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: var(--text-tertiary);
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
+  background: #1c1c1e; /* Slightly different dark bg */
+  padding: 16px 12px;
 }
 
 .messages-list {
@@ -479,154 +416,132 @@ onUnmounted(() => {
   gap: 16px;
 }
 
-.message-item {
+.message-row {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
   align-items: flex-start;
 }
 
-.message-item.message-sent {
+.message-sent {
+  align-items: flex-end;
+}
+
+.time-stamp {
+  align-self: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 12px;
+}
+
+.message-bubble-group {
+  display: flex;
+  gap: 8px;
+  max-width: 80%;
+}
+
+.message-sent .message-bubble-group {
   flex-direction: row-reverse;
 }
 
-.message-avatar {
-  width: 32px;
-  height: 32px;
+.avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background-color: var(--bg-color);
+  background-color: #333;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  flex-shrink: 0;
 }
 
-.avatar-initial-small {
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--text-tertiary);
-}
-
-.message-content-wrapper {
-  max-width: 70%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.message-item.message-sent .message-content-wrapper {
-  align-items: flex-end;
-}
-
-.message-bubble {
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.5;
-  word-wrap: break-word;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-}
-
-.message-item.message-sent .message-bubble {
-  background: var(--primary-color);
-  color: white;
-}
-
-.message-time {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  padding: 0 4px;
-}
-
-.modal-footer {
-  padding: 16px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
-}
-
-.limit-warning {
-  font-size: 12px;
-  color: #ffa500;
-  margin-bottom: 8px;
-  padding: 8px;
-  background: rgba(255, 165, 0, 0.1);
-  border-radius: 4px;
-}
-
-.input-wrapper {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.message-input {
-  flex: 1;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-color);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: inherit;
-  resize: none;
-  transition: border-color 0.2s;
-}
-
-.message-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-}
-
-.message-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.send-btn {
-  padding: 10px 20px;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 8px;
+.avatar-text {
   font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
+  color: #999;
 }
 
-.send-btn:hover:not(:disabled) {
-  background: #ff1c74;
+.bubble {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  background: #2c2c2e;
+  color: white;
+  position: relative;
+  word-wrap: break-word;
 }
 
-.send-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.message-sent .bubble {
+  background: #0a84ff; /* iOS Blue style */
+  color: white;
 }
 
-/* Modal Transition */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
+.page-footer {
+  background: var(--bg-color);
+  padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.modal-enter-active .message-modal,
-.modal-leave-active .message-modal {
-  transition: transform 0.3s ease, opacity 0.3s ease;
+.input-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
+.input-box-wrapper {
+  flex: 1;
+  background: #2c2c2e;
+  border-radius: 20px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
 }
 
-.modal-enter-from .message-modal,
-.modal-leave-to .message-modal {
-  transform: scale(0.9);
-  opacity: 0;
+.chat-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 15px;
+  padding: 0;
+  outline: none;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #444;
+  background: transparent;
+  color: white;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-btn-small {
+  padding: 6px 12px;
+  background: #0a84ff;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Slide Transition */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
 }
 </style>
 

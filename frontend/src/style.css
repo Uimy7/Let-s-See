@@ -23,6 +23,14 @@
   --radius-lg: 16px;
 }
 
+/* Mobile Responsive Variables */
+@media (max-width: 768px) {
+  :root {
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+}
+
 html,
 body {
   width: 100%;

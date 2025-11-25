@@ -1341,4 +1341,80 @@ onMounted(() => {
   transform: scale(0.9);
   opacity: 0;
 }
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0;
+    background: var(--bg-color);
+    align-items: flex-start;
+  }
+
+  .modal-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  
+  .content-wrapper {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .aside {
+    width: 100%;
+    height: 40vh;
+    flex: none;
+    background: black;
+  }
+  
+  .main {
+    flex: none;
+    padding: 16px;
+    padding-bottom: 80px;
+    height: auto;
+    overflow: visible;
+  }
+  
+  .close-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    font-size: 16px;
+  }
+  
+  .comments-list {
+    overflow: visible;
+    flex: none;
+    height: auto;
+  }
+  
+  .comment-input-wrapper {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    background: var(--bg-color);
+    border-top: 1px solid var(--border-color);
+    padding: 8px 16px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 100;
+  }
+}
 </style>
