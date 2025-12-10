@@ -183,7 +183,6 @@ export const useAuthStore = defineStore('auth', () => {
     // State
     user,
     token,
-    refreshToken,
     isLoading,
     error,
 
