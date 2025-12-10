@@ -30,7 +30,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor': ['vue', 'pinia', 'axios'],
-          'editor': ['tiptap', '@tiptap/vue-3', '@tiptap/starter-kit'],
+          'editor': ['@tiptap/core', '@tiptap/vue-3', '@tiptap/starter-kit', '@tiptap/extension-placeholder'],
         },
       },
     },
