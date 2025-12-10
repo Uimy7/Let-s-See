@@ -143,7 +143,7 @@
               </div>
               <div class="card-gradient"></div>
               <div class="card-stats">
-                <span>👁️{{ item.viewCount }}</span>
+                <span>👁️ {{ item.viewCount }}</span>
               </div>
               <div 
                 class="heart-button"
