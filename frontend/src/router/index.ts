@@ -61,6 +61,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/search',
+    name: 'Search',
+    component: () => import('@/pages/Search.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/',
     redirect: '/feed',
   },

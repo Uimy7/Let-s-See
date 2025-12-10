@@ -15,12 +15,12 @@
         </div>
       </div>
       <div class="nav-right">
-        <button class="icon-btn mobile-search-btn">
+        <button class="icon-btn mobile-search-btn" @click="goToSearch">
           <img src="@/assets/icons/search.png" alt="搜索" style="width: 20px; height: 20px;">
         </button>
         
-        <div class="search-box">
-          <input type="text" placeholder="搜索你感兴趣的内容..." />
+        <div class="search-box" @click="goToSearch">
+          <input type="text" placeholder="搜索你感兴趣的内容..." readonly />
           <button>
             <img src="@/assets/icons/search.png" alt="搜索" style="width: 20px; height: 20px;">
           </button>
@@ -498,6 +498,10 @@ const goToArticle = (id: string) => {
   document.body.style.overflow = 'hidden'
 }
 
+const goToSearch = () => {
+  router.push('/search')
+}
+
 // 下拉刷新事件处理
 const handleTouchStart = (e: TouchEvent) => {
   if (!scrollContainer.value) return
@@ -663,6 +667,12 @@ const handleTouchEnd = async () => {
   padding: 8px 16px;
   display: flex;
   align-items: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.search-box:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .search-box input {
@@ -671,6 +681,7 @@ const handleTouchEnd = async () => {
   color: white;
   width: 200px;
   font-size: 14px;
+  cursor: pointer;
 }
 
 .search-box input:focus {

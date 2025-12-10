@@ -10,32 +10,23 @@
           <div class="container">
             <!-- Left: Image Carousel -->
             <aside class="aside">
-              <a-carousel
+              <ImageCarousel
                 v-if="article.images && article.images.length > 0"
-                :auto-play="false"
-                :show-arrow="article.images.length > 1 ? 'hover' : 'never'"
-                :dot-position="'bottom'"
-                class="image-carousel"
+                :images="article.images"
+                @change="handleImageChange"
               >
-                <a-carousel-item v-for="(image, index) in article.images" :key="index">
-                  <div class="carousel-image-wrapper">
-                    <img :src="image.url" :alt="`Image ${index + 1}`" class="carousel-image" />
-                  </div>
-                </a-carousel-item>
-              </a-carousel>
+                <div 
+                  v-show="!isCommentFocused"
+                  class="heart-button"
+                  :class="{ liked: article.isLiked, animating: article.animating }"
+                  @click="toggleLike"
+                >
+                  <span class="heart-icon">{{ article.isLiked ? '❤️' : '🤍' }}</span>
+                </div>
+              </ImageCarousel>
               <div v-else class="no-image-placeholder">
                 <span>{{ article.title.charAt(0) }}</span>
               </div>
-                <div 
-                      v-show="!isCommentFocused"
-                      class="heart-button"
-                      :class="{ liked: article.isLiked, animating: article.animating }"
-                      @click="toggleLike"
-                    >
-                      <span class="heart-icon">{{ article.isLiked ? '❤️' : '🤍' }}</span>
-                      <!-- <span class="like-text">{{ article.isLiked ? '已赞' : '点赞' }}</span> -->
-                    </div>
-              
             </aside>
 
             <!-- Right: Content -->
@@ -242,6 +233,7 @@ import { apiClient } from '@/utils/api'
 import { formatDate } from '@/utils/common'
 import { useAuthStore } from '@/stores/auth'
 import FollowButton from '@/components/FollowButton.vue'
+import ImageCarousel from '@/components/ImageCarousel.vue'
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
 
@@ -394,6 +386,12 @@ const handleClose = () => {
   showEmojiPicker.value = false
   fetchingArticleId.value = null
   document.body.style.overflow = ''
+}
+
+// 图片轮播变化事件
+const handleImageChange = (index: number) => {
+  // 可以在这里添加图片切换的逻辑，比如埋点统计等
+  console.log('Image changed to:', index)
 }
 
 const fetchComments = async () => {
@@ -648,31 +646,6 @@ watch([() => props.articleId, () => props.visible], ([newId, newVisible]) => {
   justify-content: center;
   position: relative;
   overflow: hidden;
-}
-
-.image-carousel {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-}
-
-.carousel-image-wrapper {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-secondary);
-}
-
-.carousel-image {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  background: var(--bg-secondary);
 }
 
 .no-image-placeholder {

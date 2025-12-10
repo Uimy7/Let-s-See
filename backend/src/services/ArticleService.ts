@@ -263,6 +263,149 @@ export class ArticleService {
       totalPages: Math.ceil(total / limit)
     }
   }
+
+  /**
+   * 搜索文章
+   */
+  async search(keyword: string, page: number = 1, limit: number = 20, currentUserId?: string) {
+    const skip = (page - 1) * limit
+    
+    // 使用MongoDB文本搜索或正则表达式搜索
+    const query: any = {
+      isDeleted: false,
+      $or: [
+        { title: { $regex: keyword, $options: 'i' } },
+        { content: { $regex: keyword, $options: 'i' } },
+        { summary: { $regex: keyword, $options: 'i' } },
+        { tags: { $regex: keyword, $options: 'i' } }
+      ]
+    }
+    
+    const articles = await Article.find(query)
+      .sort({ viewCount: -1, createdAt: -1 }) // 按浏览量和时间排序
+      .skip(skip)
+      .limit(limit)
+      .populate('authorId', 'username avatar bio')
+      .lean()
+    
+    const total = await Article.countDocuments(query)
+    
+    // Populate like status if user is logged in
+    if (currentUserId) {
+      const articleIds = articles.map((article: any) => article._id.toString())
+      const likedMap = await likeService.checkLikedStatus(currentUserId, articleIds)
+      
+      articles.forEach((article: any) => {
+        article.isLiked = likedMap[article._id.toString()] || false
+      })
+    } else {
+      articles.forEach((article: any) => {
+        article.isLiked = false
+      })
+    }
+    
+    return {
+      items: articles,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    }
+  }
+
+  /**
+   * 获取热榜文章（按浏览量排序）
+   */
+  async getHotArticles(limit: number = 10, currentUserId?: string) {
+    const articles = await Article.find({ isDeleted: false })
+      .sort({ viewCount: -1, createdAt: -1 }) // 按浏览量降序，浏览量相同则按时间降序
+      .limit(limit)
+      .populate('authorId', 'username avatar bio')
+      .lean()
+    
+    // Populate like status if user is logged in
+    if (currentUserId) {
+      const articleIds = articles.map((article: any) => article._id.toString())
+      const likedMap = await likeService.checkLikedStatus(currentUserId, articleIds)
+      
+      articles.forEach((article: any) => {
+        article.isLiked = likedMap[article._id.toString()] || false
+      })
+    } else {
+      articles.forEach((article: any) => {
+        article.isLiked = false
+      })
+    }
+    
+    return {
+      items: articles
+    }
+  }
+
+  /**
+   * 获取推荐搜索关键词（基于热门标签和热门文章标题）
+   */
+  async getRecommendations(limit: number = 5) {
+    // 获取最热门的标签
+    const hotArticles = await Article.find({ isDeleted: false })
+      .sort({ viewCount: -1 })
+      .limit(20)
+      .select('tags title')
+      .lean()
+    
+    // 收集所有标签
+    const tagFrequency = new Map<string, number>()
+    const titleKeywords = new Set<string>()
+    
+    hotArticles.forEach((article: any) => {
+      // 统计标签频率
+      if (article.tags && Array.isArray(article.tags)) {
+        article.tags.forEach((tag: string) => {
+          tagFrequency.set(tag, (tagFrequency.get(tag) || 0) + 1)
+        })
+      }
+      
+      // 提取标题关键词（简单实现：按空格分割，取较长的词）
+      if (article.title) {
+        const words = article.title.split(/[\s,，、。.]+/)
+        words.forEach((word: string) => {
+          if (word.length >= 2 && word.length <= 10) {
+            titleKeywords.add(word)
+          }
+        })
+      }
+    })
+    
+    // 按频率排序标签
+    const sortedTags = Array.from(tagFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag]) => tag)
+      .slice(0, Math.ceil(limit / 2))
+    
+    // 从标题关键词中随机选择一些
+    const keywordArray = Array.from(titleKeywords)
+    const randomKeywords = keywordArray
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.ceil(limit / 2))
+    
+    // 合并并去重
+    const recommendations = [...sortedTags, ...randomKeywords]
+      .filter((item, index, self) => self.indexOf(item) === index)
+      .slice(0, limit)
+    
+    // 如果推荐词太少，添加一些默认推荐
+    const defaultRecommendations = ['旅游攻略', '美食推荐', '科技资讯', '生活日常', '学习笔记', '摄影分享', '运动健身', '电影评论']
+    while (recommendations.length < limit) {
+      const randomDefault = defaultRecommendations[Math.floor(Math.random() * defaultRecommendations.length)]
+      if (!recommendations.includes(randomDefault)) {
+        recommendations.push(randomDefault)
+      }
+    }
+    
+    return {
+      keywords: recommendations
+    }
+  }
 }
 
 export const articleService = new ArticleService()
